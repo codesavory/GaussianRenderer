@@ -86,9 +86,10 @@ void writePPM(const vector<float3>& colorBuf, const vector<float>& alphaBuf,
               int W, int H, const string& filename)
 {
     ofstream f(filename, ios::binary);
+    if (!f) { cerr << "writePPM: cannot open " << filename << "\n"; return; }
     f << "P6\n" << W << " " << H << "\n255\n";
     for(int i = 0; i < W*H; i++) {
-        float a = std::clamp(alphaBuf[i], 0.0f, 1.0f);
+        float a = alphaBuf[i];               // no clamp — allow HDR alpha through
         float3 c = colorBuf[i] * float3(a);  // over black: color*alpha + black*(1-alpha)
         unsigned char rgb[3] = {
             (unsigned char)(255 * std::clamp(c.x, 0.0f, 1.0f)),
