@@ -147,14 +147,15 @@ int main(int argc, const char * argv[]) {
     }
 
     // ── Three Gaussians — RGB additive scene ─────────────────────────────────
-    // Equilateral triangle (d=300, σ=90, α=18) on 900×506.
+    // Equilateral triangle (d=180, σ=50, α=18) on 900×506.
+    // All centres ≥ 3.4σ from every edge — no boundary clipping.
     // Centres show primary colours; midpoints show secondary colours; centroid white.
     {
         int W = 900, H = 506;
         vector<gaussian> scene = {
-            { float2(300, 165), 90, float3(1.00f, 0.02f, 0.02f), 18.0f },  // red
-            { float2(600, 165), 90, float3(0.02f, 1.00f, 0.02f), 18.0f },  // green
-            { float2(450, 425), 90, float3(0.02f, 0.02f, 1.00f), 18.0f },  // blue
+            { float2(360, 180), 50, float3(1.00f, 0.02f, 0.02f), 18.0f },  // red
+            { float2(540, 180), 50, float3(0.02f, 1.00f, 0.02f), 18.0f },  // green
+            { float2(450, 336), 50, float3(0.02f, 0.02f, 1.00f), 18.0f },  // blue
         };
         auto img = renderGaussians(scene, W, H);
         writePPM(img, W, H, "gaussians_rgb.ppm");
