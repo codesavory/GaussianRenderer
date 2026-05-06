@@ -1,37 +1,14 @@
 # GaussianRenderer
 A CPU software rasterizer that renders 2D Gaussian splats to a PPM image.
 
-## Multiple Gaussians — Scene Renders
+## Multiple Gaussians
 
-<figure style="display: flex; justify-content: center; gap: 2%; align-items: flex-start; flex-wrap: wrap;">
-  <div style="flex: 1; min-width: 220px; text-align: center;">
-    <img src="./images/hero.png" alt="Multiple Gaussians — hero render" style="width: 100%; border-radius: 8px;" />
-    <p style="font-size: 0.85em; color: #888; margin-top: 6px;">Hero — full scene composite</p>
-  </div>
-  <div style="flex: 1; min-width: 220px; text-align: center;">
-    <img src="./images/render_rgb.jpg" alt="RGB Gaussians" style="width: 100%; border-radius: 8px;" />
-    <p style="font-size: 0.85em; color: #888; margin-top: 6px;">RGB — over-composite operator</p>
-  </div>
-</figure>
+<div style="text-align: center; margin: 16px 0;">
+  <img src="./images/render_rgb.jpg" alt="Three RGB Gaussians — over-composite operator" style="width: 60%; border-radius: 8px;" />
+  <p style="font-size: 0.85em; color: #888; margin-top: 6px;">Three overlapping RGB Gaussians composited with the over operator</p>
+</div>
 
-<figure style="display: flex; justify-content: center; gap: 2%; align-items: flex-start; flex-wrap: wrap; margin-top: 16px;">
-  <div style="flex: 1; min-width: 220px; text-align: center;">
-    <img src="./images/render_eyecandy.jpg" alt="Eye candy render" style="width: 100%; border-radius: 8px;" />
-    <p style="font-size: 0.85em; color: #888; margin-top: 6px;">Eye candy — dense overlapping splats</p>
-  </div>
-  <div style="flex: 1; min-width: 220px; text-align: center;">
-    <img src="./images/render_vivid.jpg" alt="Vivid colors render" style="width: 100%; border-radius: 8px;" />
-    <p style="font-size: 0.85em; color: #888; margin-top: 6px;">Vivid — high-saturation palette</p>
-  </div>
-  <div style="flex: 1; min-width: 220px; text-align: center;">
-    <img src="./images/render_fixed.jpg" alt="Fixed render after bug fixes" style="width: 100%; border-radius: 8px;" />
-    <p style="font-size: 0.85em; color: #888; margin-top: 6px;">Fixed — correct straight-colour composite after Phase 1 fixes</p>
-  </div>
-</figure>
-
----
-
-## Single Gaussian Renders
+## Single Gaussian
 
 <figure style="display: flex; justify-content: center; gap: 2%; align-items: center;">
   <div style="flex: 1; text-align: center;">
