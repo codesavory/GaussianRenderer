@@ -42,12 +42,13 @@ struct float3 {
 };
 
 struct gaussian {
-    float2 mu; // center (x,y)
-    float sigma; // radius/spread
-    float3 color; // RGB
-    float alpha; // opacity weight
+    float2 mu;     // center (x,y)
+    float  sigma;  // spread
+    float3 color;  // RGB
+    float  alpha;  // opacity weight
 
-    gaussian(float2 mu, float sigma, float3 color, float alpha): mu(mu), sigma(sigma), color(color), alpha(alpha) {};
+    gaussian(float2 mu, float sigma, float3 color, float alpha)
+        : mu(mu), sigma(sigma), color(color), alpha(alpha) {};
 };
 
 float squaredDistance(float2 a) {
@@ -57,40 +58,76 @@ float squaredDistance(float2 a) {
 // Sampling a Gaussian — returns straight color (no alpha baked in)
 void splat(const gaussian& gauss, int x, int y, float3& pColor, float& pAlpha) {
     float2 pixelCenter = float2(x+0.5f, y+0.5f);
-    float2 offset = pixelCenter - gauss.mu;
-    float r2 = squaredDistance(offset);
-    float gaussianFallOff = expf(-0.5f * r2 / (gauss.sigma*gauss.sigma));
+    float2 offset      = pixelCenter - gauss.mu;
+    float  r2          = squaredDistance(offset);
+    float  fallOff     = expf(-0.5f * r2 / (gauss.sigma * gauss.sigma));
 
-    pAlpha = gauss.alpha * gaussianFallOff;
+    pAlpha = gauss.alpha * fallOff;
     pColor = gauss.color;  // straight color — compositing happens at write time
 }
 
-// Returns straight color buffer and alpha buffer separately
-pair<vector<float3>, vector<float>> renderGaussian(gaussian gauss, int width, int height) {
-    vector<float3> accumRGB(width*height, float3(0));
-    vector<float> accumAlpha(width*height, 0.0f);
+// ── Single Gaussian — over-compositing model ──────────────────────────────────
+// Returns straight colour and alpha buffers separately for explicit compositing.
+pair<vector<float3>, vector<float>> renderGaussian(const gaussian& gauss, int W, int H) {
+    vector<float3> accumRGB(W*H, float3(0));
+    vector<float>  accumAlpha(W*H, 0.0f);
     float3 pixelColor;
-    float pixelAlpha;
-    for(int j=0; j<height; j++) {
-        for(int i=0; i<width; i++) {
+    float  pixelAlpha;
+    for (int j = 0; j < H; j++)
+        for (int i = 0; i < W; i++) {
             splat(gauss, i, j, pixelColor, pixelAlpha);
-            accumRGB[j*width + i]   = pixelColor;
-            accumAlpha[j*width + i] = pixelAlpha;  // fix: was i*width + i
+            accumRGB[j*W + i]   = pixelColor;
+            accumAlpha[j*W + i] = pixelAlpha;
         }
-    }
     return {accumRGB, accumAlpha};
 }
 
-// Composites color * alpha over black background at write time
+// ── Multiple Gaussians — additive compositing model ───────────────────────────
+// Each Gaussian contributes color*alpha to the buffer additively.
+// Overlapping Gaussians sum their contributions; HDR values are resolved by
+// clamping to [0,1] at write time. This produces natural secondary-colour
+// mixing: R+G→yellow, R+B→magenta, G+B→cyan, R+G+B→white.
+vector<float3> renderGaussians(const vector<gaussian>& gaussians, int W, int H) {
+    vector<float3> accumRGB(W*H, float3(0));
+    float3 pColor;
+    float  pAlpha;
+    for (const auto& g : gaussians)
+        for (int j = 0; j < H; j++)
+            for (int i = 0; i < W; i++) {
+                splat(g, i, j, pColor, pAlpha);
+                accumRGB[j*W + i] += pColor * float3(pAlpha);  // additive contribution
+            }
+    return accumRGB;
+}
+
+// ── writePPM overloads ────────────────────────────────────────────────────────
+
+// Over-compositing path: composites straight colour against black at write time
 void writePPM(const vector<float3>& colorBuf, const vector<float>& alphaBuf,
               int W, int H, const string& filename)
 {
     ofstream f(filename, ios::binary);
     if (!f) { cerr << "writePPM: cannot open " << filename << "\n"; return; }
     f << "P6\n" << W << " " << H << "\n255\n";
-    for(int i = 0; i < W*H; i++) {
-        float a = alphaBuf[i];               // no clamp — allow HDR alpha through
-        float3 c = colorBuf[i] * float3(a);  // over black: color*alpha + black*(1-alpha)
+    for (int i = 0; i < W*H; i++) {
+        float a  = alphaBuf[i];               // HDR alpha — no clamp before multiply
+        float3 c = colorBuf[i] * float3(a);   // over black: color*alpha + black*(1-alpha)
+        unsigned char rgb[3] = {
+            (unsigned char)(255 * std::clamp(c.x, 0.0f, 1.0f)),
+            (unsigned char)(255 * std::clamp(c.y, 0.0f, 1.0f)),
+            (unsigned char)(255 * std::clamp(c.z, 0.0f, 1.0f))
+        };
+        f.write((char*)rgb, 3);
+    }
+}
+
+// Additive path: HDR accumulated buffer is clamped directly to display range
+void writePPM(const vector<float3>& imgBuf, int W, int H, const string& filename)
+{
+    ofstream f(filename, ios::binary);
+    if (!f) { cerr << "writePPM: cannot open " << filename << "\n"; return; }
+    f << "P6\n" << W << " " << H << "\n255\n";
+    for (const auto& c : imgBuf) {
         unsigned char rgb[3] = {
             (unsigned char)(255 * std::clamp(c.x, 0.0f, 1.0f)),
             (unsigned char)(255 * std::clamp(c.y, 0.0f, 1.0f)),
@@ -101,13 +138,30 @@ void writePPM(const vector<float3>& colorBuf, const vector<float>& alphaBuf,
 }
 
 int main(int argc, const char * argv[]) {
-    int WIDTH = 500, HEIGHT = 500;
-    gaussian firstGaussian(float2(250, 250), 100, float3(1.0, 0.05, 0.05), 0.5);
-    auto [colorBuf, alphaBuf] = renderGaussian(firstGaussian, WIDTH, HEIGHT);
-    writePPM(colorBuf, alphaBuf, WIDTH, HEIGHT, "gaussian.ppm");
-    std::cout << "Current working directory: "
-              << std::filesystem::current_path() << "\n";
-    cout << "image written";
+    // ── Single Gaussian test (over-compositing model) ─────────────────────────
+    {
+        int W = 900, H = 506;
+        gaussian g(float2(W/2.f, H/2.f), 120, float3(1.0f, 0.05f, 0.05f), 25.0f);
+        auto [colorBuf, alphaBuf] = renderGaussian(g, W, H);
+        writePPM(colorBuf, alphaBuf, W, H, "gaussian.ppm");
+    }
+
+    // ── Three Gaussians — RGB additive scene ─────────────────────────────────
+    // Equilateral triangle (d=300, σ=90, α=18) on 900×506.
+    // Centres show primary colours; midpoints show secondary colours; centroid white.
+    {
+        int W = 900, H = 506;
+        vector<gaussian> scene = {
+            { float2(300, 165), 90, float3(1.00f, 0.02f, 0.02f), 18.0f },  // red
+            { float2(600, 165), 90, float3(0.02f, 1.00f, 0.02f), 18.0f },  // green
+            { float2(450, 425), 90, float3(0.02f, 0.02f, 1.00f), 18.0f },  // blue
+        };
+        auto img = renderGaussians(scene, W, H);
+        writePPM(img, W, H, "gaussians_rgb.ppm");
+    }
+
+    std::cout << "Current working directory: " << std::filesystem::current_path() << "\n";
+    cout << "images written\n";
     return 0;
 }
 
